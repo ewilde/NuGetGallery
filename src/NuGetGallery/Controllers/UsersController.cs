@@ -253,7 +253,7 @@ namespace NuGetGallery
             return View(model);
         }
 
-        public virtual ActionResult Profiles(string username)
+        public virtual ActionResult Profiles(string username, int page = 1, bool showAllPackages = false)
         {
             var user = UserService.FindByUsername(username);
             if (user == null)
@@ -269,11 +269,8 @@ namespace NuGetGallery
                     Version = null
                 }).ToList();
 
-            var model = new UserProfileModel(user)
-            {
-                Packages = packages,
-                TotalPackageDownloadCount = packages.Sum(p => p.TotalDownloadCount),
-            };
+            var model = new UserProfileModel(user, packages, page - 1, Constants.DefaultPackageListPageSize, Url);
+            model.ShowAllPackages = showAllPackages;
 
             return View(model);
         }
@@ -335,6 +332,25 @@ namespace NuGetGallery
 
             return RedirectToAction(actionName: "Account", controllerName: "Users");
         }
+
+        [HttpPost]
+        [Authorize]
+        public virtual async Task<ActionResult> CancelChangeEmail(AccountViewModel model)
+        {
+            var user = GetCurrentUser();
+
+            if(string.IsNullOrWhiteSpace(user.UnconfirmedEmailAddress))
+            {
+                return RedirectToAction(actionName: "Account", controllerName: "Users");
+            }
+            
+            await UserService.CancelChangeEmailAddress(user);
+
+            TempData["Message"] = Strings.CancelEmailAddress;
+
+            return RedirectToAction(actionName: "Account", controllerName: "Users");
+        }
+
 
         [HttpPost]
         [Authorize]
@@ -434,11 +450,6 @@ namespace NuGetGallery
                 TempData["Message"] = message;
             }
             return RedirectToAction("Account");
-        }
-
-        private ActionResult EditProfileView()
-        {
-            return AccountView(new AccountViewModel());
         }
 
         private ActionResult AccountView(AccountViewModel model)
